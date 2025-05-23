@@ -96,31 +96,28 @@ extension CoreDataClient {
 	
 	public struct Configuration: Sendable {
 		private let objectID: NSManagedObjectID?
-		public var attributes: [String: AnySendable] = [:]
+		private var attributes: [String: AnySendable] = [:]
 		
 		public init(objectID: NSManagedObjectID? = nil) {
 			self.objectID = objectID
 		}
 		
-		public mutating func setValue(_ value: Any?, for key: String) {
-			if let value = value {
-				attributes[key] = CoreDataClient.valueToSendable(value)
-			} else {
-				attributes[key] = AnySendable(value: NSNull())
-			}
-		}
-		
-		public mutating func setValue(_ value: Any?, for keyPath: KeyPath<NSManagedObject, Any?>) {
+		public mutating func setValue<T: NSManagedObject, V>(_ value: V?, forKeyPath keyPath: KeyPath<T, V?>) {
 			guard let key = keyPath._kvcKeyPathString else {
-				assertionFailure("Invalid keyPath (cannot convert to KVC string)")
+				assertionFailure("Invalid keyPath")
 				return
 			}
 			
-			if let value = value {
-				attributes[key] = CoreDataClient.valueToSendable(value)
-			} else {
-				attributes[key] = AnySendable(value: NSNull())
+			attributes[key] = value.map { CoreDataClient.valueToSendable($0) } ?? AnySendable(value: NSNull())
+		}
+		
+		public func value(forKeyPath keyPath: AnyKeyPath) -> AnySendable? {
+			guard let key = keyPath._kvcKeyPathString else {
+				assertionFailure("Invalid keyPath")
+				return nil
 			}
+			
+			return attributes[key]
 		}
 		
 		public func apply(to entity: NSManagedObject) throws {
@@ -436,21 +433,6 @@ extension CoreDataClient {
 			
 		default:
 			fatalError("AnySendable: Unsupported type \(type(of: value))")
-		}
-	}
-}
-
-extension CoreDataClient {
-	
-	public struct AnyContainer: Sendable {
-		private let internalContainer: NSPersistentContainer
-		
-		public var container: NSPersistentContainer {
-			internalContainer
-		}
-		
-		public init(_ container: NSPersistentContainer) {
-			self.internalContainer = container
 		}
 	}
 }
