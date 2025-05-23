@@ -55,12 +55,12 @@ extension CoreDataManager {
 		self.container = container
 	}
 	
-	func fetchEntities(_ entityName: String, _ predicate: CoreDataClient.Predicate?) async throws -> [CoreDataClient.AnyTransferable] {
+	func fetchEntities(_ type: NSManagedObject.Type, _ predicate: CoreDataClient.Predicate?) async throws -> [CoreDataClient.AnyTransferable] {
 		guard let context = newBackgroundContext else {
 			throw CoreDataClient.StoreError.containerNotFound
 		}
 		
-		let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
+		let request = NSFetchRequest<NSManagedObject>(entityName: String(describing: type))
 		request.predicate = predicate?.predicate.value
 		
 		return try await context.safeWrite { context in

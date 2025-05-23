@@ -19,8 +19,8 @@ extension CoreDataClient: DependencyKey {
 			initializeWithContainer: { container in
 				try await actor.initializeWithContainer(container)
 			},
-			fetchEntities: { entityName, predicate in
-				try await actor.fetchEntities(entityName, predicate)
+			fetchEntities: { type, predicate in
+				try await actor.fetchEntities(type, predicate)
 			},
 			objectExists: { type, predicate in
 				try await actor.objectExists(type, predicate)

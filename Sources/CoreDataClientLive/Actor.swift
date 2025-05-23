@@ -20,8 +20,8 @@ actor CoreDataActor {
 		try await manager.initializeWithContainer(container)
 	}
 	
-	func fetchEntities(_ entityName: String, _ predicate: CoreDataClient.Predicate?) async throws -> [CoreDataClient.AnyTransferable] {
-		try await manager.fetchEntities(entityName, predicate)
+	func fetchEntities(_ type: NSManagedObject.Type, _ predicate: CoreDataClient.Predicate?) async throws -> [CoreDataClient.AnyTransferable] {
+		try await manager.fetchEntities(type, predicate)
 	}
 	
 	func objectExists(_ type: NSManagedObject.Type, _ predicate: CoreDataClient.Predicate) async throws -> CoreDataClient.AnyTransferable? {
