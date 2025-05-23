@@ -16,6 +16,10 @@ actor CoreDataActor {
 		try await manager.initialize(containerName, inMemory)
 	}
 	
+	func initializeWithContainer(_ container: NSPersistentContainer) async throws -> Void {
+		try await manager.initializeWithContainer(container)
+	}
+	
 	func fetchEntities(_ entityName: String, _ predicate: CoreDataClient.Predicate?) async throws -> [CoreDataClient.AnyTransferable] {
 		try await manager.fetchEntities(entityName, predicate)
 	}

@@ -439,3 +439,18 @@ extension CoreDataClient {
 		}
 	}
 }
+
+extension CoreDataClient {
+	
+	public struct AnyContainer: Sendable {
+		private let internalContainer: NSPersistentContainer
+		
+		public var container: NSPersistentContainer {
+			internalContainer
+		}
+		
+		public init(_ container: NSPersistentContainer) {
+			self.internalContainer = container
+		}
+	}
+}

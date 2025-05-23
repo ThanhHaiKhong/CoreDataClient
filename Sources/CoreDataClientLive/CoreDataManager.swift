@@ -47,6 +47,14 @@ extension CoreDataManager {
 		self.container = container
 	}
 	
+	func initializeWithContainer(_ container: NSPersistentContainer) async throws -> Void {
+		if self.container != nil {
+			return
+		}
+		
+		self.container = container
+	}
+	
 	func fetchEntities(_ entityName: String, _ predicate: CoreDataClient.Predicate?) async throws -> [CoreDataClient.AnyTransferable] {
 		guard let context = newBackgroundContext else {
 			throw CoreDataClient.StoreError.containerNotFound
