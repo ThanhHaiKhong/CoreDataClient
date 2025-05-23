@@ -102,7 +102,15 @@ extension CoreDataClient {
 			self.objectID = objectID
 		}
 		
-		public mutating func set(value: Any?, for keyPath: KeyPath<NSManagedObject, Any?>) {
+		public mutating func setValue(_ value: Any?, for key: String) {
+			if let value = value {
+				attributes[key] = CoreDataClient.valueToSendable(value)
+			} else {
+				attributes[key] = AnySendable(value: NSNull())
+			}
+		}
+		
+		public mutating func setValue(_ value: Any?, for keyPath: KeyPath<NSManagedObject, Any?>) {
 			guard let key = keyPath._kvcKeyPathString else {
 				assertionFailure("Invalid keyPath (cannot convert to KVC string)")
 				return
