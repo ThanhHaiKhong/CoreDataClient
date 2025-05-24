@@ -64,7 +64,7 @@ extension CoreDataClient {
 
 extension CoreDataClient {
 	
-	public struct AnyTransferable: Sendable {
+	public struct AnyTransferable: Sendable, CustomStringConvertible {
 		public let objectID: NSManagedObjectID
 		public var attributes: [String: AnySendable]
 		
@@ -84,8 +84,49 @@ extension CoreDataClient {
 			}
 		}
 		
-		public func value(forKey key: String) -> AnySendable? {
-			attributes[key]
+		public func value(forKeyPath keyPath: AnyKeyPath) -> AnySendable? {
+			guard let key = keyPath._kvcKeyPathString else {
+				assertionFailure("Invalid keyPath")
+				return nil
+			}
+			
+			return attributes[key]
+		}
+		
+		public var description: String {
+			let indent = "    " // 4 spaces
+			let lines = attributes
+				.sorted(by: { $0.key < $1.key })
+				.map { key, value in
+					let formatted: String
+					
+					switch value.value {
+					case let str as String:
+						formatted = "\"\(str)\""
+						
+					case let date as Date:
+						var formatter = ISO8601DateFormatter()
+						formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+						formatted = "\"\(formatter.string(from: date))\""
+						
+					case let url as URL:
+						formatted = "\"\(url.absoluteString)\""
+						
+					case is NSNull:
+						formatted = "nil"
+						
+					default:
+						formatted = "\(value.value)"
+					}
+					
+					return "\(indent)\(key): \(formatted)"
+				}
+			
+			return """
+			AnyTransferable {
+			\(lines.joined(separator: ",\n"))
+			}
+			"""
 		}
 	}
 }
@@ -94,7 +135,7 @@ extension CoreDataClient {
 
 extension CoreDataClient {
 	
-	public struct Configuration: Sendable {
+	public struct Configuration: Sendable, CustomStringConvertible {
 		private let objectID: NSManagedObjectID?
 		private var attributes: [String: AnySendable] = [:]
 		
@@ -102,7 +143,7 @@ extension CoreDataClient {
 			self.objectID = objectID
 		}
 		
-		public mutating func setValue<T: NSManagedObject, V>(_ value: V?, forKeyPath keyPath: KeyPath<T, V?>) {
+		public mutating func setValue<T: NSManagedObject, V>(_ value: V?, forKeyPath keyPath: KeyPath<T, V>) {
 			guard let key = keyPath._kvcKeyPathString else {
 				assertionFailure("Invalid keyPath")
 				return
@@ -141,6 +182,37 @@ extension CoreDataClient {
 				config.attributes[key] = CoreDataClient.valueToSendable(attrValue ?? NSNull())
 			}
 			return config
+		}
+		
+		public var description: String {
+			let indent = "    "
+			let lines = attributes
+				.sorted(by: { $0.key < $1.key })
+				.map { key, value in
+					let formatted: String
+					
+					switch value.value {
+					case let str as String:
+						formatted = "\"\(str)\""
+					case let date as Date:
+						let formatter = ISO8601DateFormatter()
+						formatted = "\"\(formatter.string(from: date))\""
+					case let url as URL:
+						formatted = "\"\(url.absoluteString)\""
+					case is NSNull:
+						formatted = "nil"
+					default:
+						formatted = "\(value.value)"
+					}
+					
+					return "\(indent)\(key): \(formatted)"
+				}
+			
+			return """
+			Configuration {
+			\(lines.joined(separator: ",\n"))
+			}
+			"""
 		}
 	}
 }
