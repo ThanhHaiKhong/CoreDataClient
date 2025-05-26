@@ -13,4 +13,5 @@ public struct CoreDataClient: Sendable {
 	public var insertEntity: @Sendable(_ type: NSManagedObject.Type, _ configure: CoreDataClient.Configuration) async throws -> CoreDataClient.AnyTransferable
 	public var updateEntity: @Sendable(_ objectID: NSManagedObjectID, _ changes: CoreDataClient.Configuration) async throws -> CoreDataClient.AnyTransferable
 	public var deleteEntity: @Sendable(_ objectID: NSManagedObjectID) async throws -> Void
+	public var observeChanges: @Sendable() async -> AsyncStream<CoreDataClient.Event> = { AsyncStream { _ in } }
 }

@@ -33,6 +33,9 @@ extension CoreDataClient: DependencyKey {
 			},
 			deleteEntity: { objectID in
 				try await actor.deleteEntity(objectID)
+			},
+			observeChanges: {
+				await actor.observeChanges()
 			}
 		)
 	}()

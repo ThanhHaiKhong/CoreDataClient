@@ -39,4 +39,8 @@ actor CoreDataActor {
 	func deleteEntity(_ objectID: NSManagedObjectID) async throws {
 		try await manager.deleteEntity(objectID)
 	}
+	
+	func observeChanges() -> AsyncStream<CoreDataClient.Event> {
+		return manager.observeChanges()
+	}
 }

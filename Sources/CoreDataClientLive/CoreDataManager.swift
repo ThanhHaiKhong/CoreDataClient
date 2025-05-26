@@ -11,6 +11,7 @@ import CoreData
 final internal class CoreDataManager: NSObject, @unchecked Sendable {
 	
 	private var container: NSPersistentContainer?
+	private var eventContinuation: AsyncStream<CoreDataClient.Event>.Continuation?
 	
 	private var context: NSManagedObjectContext? {
 		guard let container = container else { return nil }
@@ -128,5 +129,61 @@ extension CoreDataManager {
 		try await context.safeWrite { context in
 			context.delete(object)
 		}
+	}
+	
+	func observeChanges() -> AsyncStream<CoreDataClient.Event> {
+		return AsyncStream { [weak self] continuation in
+			guard let `self` = self, let context = context else {
+				continuation.finish()
+				return
+			}
+			
+			self.eventContinuation = continuation
+			
+			let notificationCenter = NotificationCenter.default
+			let observer = notificationCenter.addObserver(
+				forName: NSNotification.Name.NSManagedObjectContextObjectsDidChange,
+				object: context, // Observe viewContext
+				queue: nil
+			) { notification in
+				guard let userInfo = notification.userInfo else { return }
+				
+				let inserted = (userInfo[NSInsertedObjectsKey] as? Set<NSManagedObject>)?.map { CoreDataClient.Event(type: .inserted(type(of: $0)), changed: CoreDataClient.AnyTransferable(object: $0)) } ?? []
+				let updated = (userInfo[NSUpdatedObjectsKey] as? Set<NSManagedObject>)?.map { CoreDataClient.Event(type: .updated(type(of: $0)), changed: CoreDataClient.AnyTransferable(object: $0)) } ?? []
+				let deleted = (userInfo[NSDeletedObjectsKey] as? Set<NSManagedObject>)?.map { CoreDataClient.Event(type: .deleted(type(of: $0)), changed: CoreDataClient.AnyTransferable(object: $0)) } ?? []
+				
+				Task { @MainActor in
+					for event in inserted {
+						continuation.yield(event)
+					}
+					for event in updated {
+						continuation.yield(event)
+					}
+					for event in deleted {
+						continuation.yield(event)
+					}
+				}
+			}
+			
+			let observerWrapper = ObserverWrapper(observer: observer)
+			continuation.onTermination = { @Sendable _ in
+				Task { @MainActor in
+					observerWrapper.remove(from: notificationCenter)
+				}
+				self.eventContinuation = nil
+			}
+		}
+	}
+}
+
+private final class ObserverWrapper: @unchecked Sendable {
+	private let observer: any NSObjectProtocol
+	
+	init(observer: any NSObjectProtocol) {
+		self.observer = observer
+	}
+	
+	func remove(from notificationCenter: NotificationCenter) {
+		notificationCenter.removeObserver(observer)
 	}
 }

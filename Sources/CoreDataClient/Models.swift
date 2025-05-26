@@ -8,14 +8,50 @@
 import Foundation
 import CoreData
 
+// MARK: - CoreDataClientEvent
+
+extension CoreDataClient {
+	public struct Event: Sendable, Equatable {
+		public enum `Type`: Sendable, Equatable {
+			case inserted(NSManagedObject.Type)
+			case updated(NSManagedObject.Type)
+			case deleted(NSManagedObject.Type)
+			
+			public static func == (lhs: Type, rhs: Type) -> Bool {
+				switch (lhs, rhs) {
+				case (.inserted(let leftType), .inserted(let rightType)),
+					 (.updated(let leftType), .updated(let rightType)),
+					 (.deleted(let leftType), .deleted(let rightType)):
+					return leftType == rightType
+				default:
+					return false
+				}
+			}
+		}
+		
+		public let type: Type
+		public let changed: AnyTransferable
+		
+		public init(type: Type, changed: AnyTransferable) {
+			self.type = type
+			self.changed = changed
+		}
+	}
+}
+
 // MARK: - AnySendable
 
 extension CoreDataClient {
-	public struct AnySendable: Sendable {
+	public struct AnySendable: Sendable, Equatable {
 		public let value: any Sendable
 		
 		public init<T: Sendable>(value: T) {
 			self.value = value
+		}
+		
+		public static func == (lhs: AnySendable, rhs: AnySendable) -> Bool {
+			// Use a simple equality check for Sendable types
+			return String(describing: lhs.value) == String(describing: rhs.value)
 		}
 	}
 }
@@ -64,7 +100,7 @@ extension CoreDataClient {
 
 extension CoreDataClient {
 	
-	public struct AnyTransferable: Sendable, CustomStringConvertible {
+	public struct AnyTransferable: Sendable, CustomStringConvertible, Equatable {
 		public let objectID: NSManagedObjectID
 		public var attributes: [String: AnySendable]
 		
