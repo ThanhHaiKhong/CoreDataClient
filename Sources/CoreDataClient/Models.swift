@@ -60,14 +60,14 @@ extension CoreDataClient {
 
 extension CoreDataClient {
 	
-	public enum StoreError: Error, Sendable, CustomDebugStringConvertible {
+	public enum `Error`: Swift.Error, Sendable, CustomDebugStringConvertible {
 		case containerNotFound
 		case entityNotFound(String)
 		case mismatchType(_ type: String, desiredType: String)
 		case invalidAttribute(String)
 		case noObjectFound
 		case multipleObjectsFound(count: Int)
-		case fetchError(underlying: Error)
+		case fetchError(underlying: Swift.Error)
 		
 		public var debugDescription: String {
 			switch self {
@@ -141,7 +141,7 @@ extension CoreDataClient {
 						formatted = "\"\(str)\""
 						
 					case let date as Date:
-						var formatter = ISO8601DateFormatter()
+						let formatter = ISO8601DateFormatter()
 						formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 						formatted = "\"\(formatter.string(from: date))\""
 						
@@ -200,7 +200,7 @@ extension CoreDataClient {
 		public func apply(to entity: NSManagedObject) throws {
 			for (key, value) in attributes {
 				guard entity.entity.attributesByName[key] != nil else {
-					throw StoreError.invalidAttribute(key)
+					throw Error.invalidAttribute(key)
 				}
 				
 				if let _ = value.value as? NSNull {

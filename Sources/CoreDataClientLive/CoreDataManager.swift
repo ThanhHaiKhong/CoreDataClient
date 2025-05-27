@@ -8,7 +8,7 @@
 import CoreDataClient
 import CoreData
 
-final internal class CoreDataManager: NSObject, @unchecked Sendable {
+internal final class CoreDataManager: NSObject, @unchecked Sendable {
 	
 	private var container: NSPersistentContainer?
 	private var eventContinuation: AsyncStream<CoreDataClient.Event>.Continuation?
@@ -58,7 +58,7 @@ extension CoreDataManager {
 	
 	func fetchEntities(_ type: NSManagedObject.Type, _ predicate: CoreDataClient.Predicate?) async throws -> [CoreDataClient.AnyTransferable] {
 		guard let context = newBackgroundContext else {
-			throw CoreDataClient.StoreError.containerNotFound
+			throw CoreDataClient.Error.containerNotFound
 		}
 		
 		let request = NSFetchRequest<NSManagedObject>(entityName: String(describing: type))
@@ -72,7 +72,7 @@ extension CoreDataManager {
 	
 	func objectExists(_ type: NSManagedObject.Type, _ predicate: CoreDataClient.Predicate) async throws -> CoreDataClient.AnyTransferable? {
 		guard let context = newBackgroundContext else {
-			throw CoreDataClient.StoreError.containerNotFound
+			throw CoreDataClient.Error.containerNotFound
 		}
 		
 		let request = NSFetchRequest<NSManagedObject>(entityName: String(describing: type))
@@ -90,12 +90,12 @@ extension CoreDataManager {
 	
 	func insertEntity(_ type: NSManagedObject.Type, _ configuration: CoreDataClient.Configuration) async throws -> CoreDataClient.AnyTransferable {
 		guard let container = container, let context = newBackgroundContext else {
-			throw CoreDataClient.StoreError.containerNotFound
+			throw CoreDataClient.Error.containerNotFound
 		}
 		
 		let entityName = String(describing: type)
 		guard let entityDescription = container.managedObjectModel.entitiesByName[entityName] else {
-			throw CoreDataClient.StoreError.entityNotFound(entityName)
+			throw CoreDataClient.Error.entityNotFound(entityName)
 		}
 		
 		return try await context.safeWrite { context in
@@ -108,7 +108,7 @@ extension CoreDataManager {
 	
 	func updateEntity(_ objectID: NSManagedObjectID, _ changes: CoreDataClient.Configuration) async throws -> CoreDataClient.AnyTransferable {
 		guard let context = newBackgroundContext else {
-			throw CoreDataClient.StoreError.containerNotFound
+			throw CoreDataClient.Error.containerNotFound
 		}
 		
 		return try await context.safeWrite { context in
@@ -121,7 +121,7 @@ extension CoreDataManager {
 	
 	func deleteEntity(_ objectID: NSManagedObjectID) async throws {
 		guard let context = newBackgroundContext else {
-			throw CoreDataClient.StoreError.containerNotFound
+			throw CoreDataClient.Error.containerNotFound
 		}
 		
 		let object = try context.existingObject(with: objectID)
@@ -141,12 +141,10 @@ extension CoreDataManager {
 			self.eventContinuation = continuation
 			
 			let notificationCenter = NotificationCenter.default
-			let observer = notificationCenter.addObserver(
-				forName: NSNotification.Name.NSManagedObjectContextObjectsDidChange,
-				object: context, // Observe viewContext
-				queue: nil
-			) { notification in
-				guard let userInfo = notification.userInfo else { return }
+			let observer = notificationCenter.addObserver(forName: NSNotification.Name.NSManagedObjectContextObjectsDidChange, object: context, queue: .main) { notification in
+				guard let userInfo = notification.userInfo else {
+					return
+				}
 				
 				let inserted = (userInfo[NSInsertedObjectsKey] as? Set<NSManagedObject>)?.map { CoreDataClient.Event(type: .inserted(type(of: $0)), changed: CoreDataClient.AnyTransferable(object: $0)) } ?? []
 				let updated = (userInfo[NSUpdatedObjectsKey] as? Set<NSManagedObject>)?.map { CoreDataClient.Event(type: .updated(type(of: $0)), changed: CoreDataClient.AnyTransferable(object: $0)) } ?? []
