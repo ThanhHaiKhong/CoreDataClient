@@ -106,6 +106,26 @@ extension CoreDataManager {
 		}
 	}
 	
+	func updateEntities(_ type: NSManagedObject.Type, _ changes: CoreDataClient.Configuration) async throws -> [CoreDataClient.AnyTransferable] {
+		guard let context = newBackgroundContext else {
+			throw CoreDataClient.Error.containerNotFound
+		}
+		
+		let entityName = String(describing: type)
+		let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
+		let objects = try await context.fetch(request)
+		var updatedObjects: [CoreDataClient.AnyTransferable] = []
+		
+		return try await context.safeWrite { context in
+			for object in objects {
+				try changes.applyDiff(to: object)
+				updatedObjects.append(CoreDataClient.AnyTransferable(object: object))
+			}
+			
+			return updatedObjects
+		}
+	}
+	
 	func updateEntity(_ objectID: NSManagedObjectID, _ changes: CoreDataClient.Configuration) async throws -> CoreDataClient.AnyTransferable {
 		guard let context = newBackgroundContext else {
 			throw CoreDataClient.Error.containerNotFound

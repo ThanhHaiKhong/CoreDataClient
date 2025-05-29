@@ -32,6 +32,10 @@ actor CoreDataActor {
 		try await manager.insertEntity(type, configuration)
 	}
 	
+	func updateEntities(_ type: NSManagedObject.Type, changes: CoreDataClient.Configuration) async throws -> [CoreDataClient.AnyTransferable] {
+		try await manager.updateEntities(type, changes)
+	}
+	
 	func updateEntity(_ objectID: NSManagedObjectID, changes: CoreDataClient.Configuration) async throws -> CoreDataClient.AnyTransferable {
 		try await manager.updateEntity(objectID, changes)
 	}

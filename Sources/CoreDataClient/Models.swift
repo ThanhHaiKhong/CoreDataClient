@@ -20,8 +20,8 @@ extension CoreDataClient {
 			public static func == (lhs: Type, rhs: Type) -> Bool {
 				switch (lhs, rhs) {
 				case (.inserted(let leftType), .inserted(let rightType)),
-					 (.updated(let leftType), .updated(let rightType)),
-					 (.deleted(let leftType), .deleted(let rightType)):
+					(.updated(let leftType), .updated(let rightType)),
+					(.deleted(let leftType), .deleted(let rightType)):
 					return leftType == rightType
 				default:
 					return false
@@ -159,10 +159,10 @@ extension CoreDataClient {
 				}
 			
 			return """
-			AnyTransferable {
-			\(lines.joined(separator: ",\n"))
-			}
-			"""
+   AnyTransferable {
+   \(lines.joined(separator: ",\n"))
+   }
+   """
 		}
 	}
 }
@@ -197,24 +197,41 @@ extension CoreDataClient {
 			return attributes[key]
 		}
 		
-		public func apply(to entity: NSManagedObject) throws {
+		public func apply(to object: NSManagedObject) throws {
 			for (key, value) in attributes {
-				guard entity.entity.attributesByName[key] != nil else {
+				guard object.entity.attributesByName[key] != nil else {
 					throw Error.invalidAttribute(key)
 				}
 				
 				if let _ = value.value as? NSNull {
-					entity.setValue(nil, forKey: key)
+					object.setValue(nil, forKey: key)
+				} else if let anyImmutableArray = value.value as? AnyImmutableArray {
+					let array = anyImmutableArray.rawValue
+					object.setValue(array, forKey: key)
 				} else {
-					entity.setValue(value.value, forKey: key)
+					object.setValue(value.value, forKey: key)
+				}
+			}
+		}
+
+		public func applyDiff(to object: NSManagedObject) throws {
+			for (key, value) in attributes {
+				guard object.entity.attributesByName[key] != nil else {
+					throw Error.invalidAttribute(key)
+				}
+				
+				if let anyImmutableArray = value.value as? AnyImmutableArray, let originalArray = object.value(forKey: key) as? NSArray {
+					let array = anyImmutableArray.rawValue
+					let filteredOriginal = originalArray.filter { !array.contains($0) }
+					object.setValue(NSArray(array: filteredOriginal), forKey: key)
 				}
 			}
 		}
 		
-		public static func from(_ entity: NSManagedObject) -> Configuration {
-			var config = Configuration(objectID: entity.objectID)
-			for (key, _) in entity.entity.attributesByName {
-				let attrValue = entity.value(forKey: key)
+		public static func from(_ object: NSManagedObject) -> Configuration {
+			var config = Configuration(objectID: object.objectID)
+			for (key, _) in object.entity.attributesByName {
+				let attrValue = object.value(forKey: key)
 				config.attributes[key] = CoreDataClient.valueToSendable(attrValue ?? NSNull())
 			}
 			return config
@@ -245,9 +262,9 @@ extension CoreDataClient {
 				}
 			
 			return """
-			Configuration {
-			\(lines.joined(separator: ",\n"))
-			}
+				Configuration {
+				\(lines.joined(separator: ",\n"))
+				}
 			"""
 		}
 	}
@@ -399,6 +416,17 @@ extension CoreDataClient {
 // MARK: - Predicate Extensions
 
 extension CoreDataClient.Predicate {
+	/// Check if an array attribute contains a given element (e.g., ANY songIDs == uuid)
+	public static func whereArrayContains<Root, Element>(
+		_ keyPath: KeyPath<Root, [Element]>,
+		contains element: Element
+	) -> CoreDataClient.PredicateComponent {
+		let key = CoreDataClient.AnyKeyPathable(keyPath)
+		return CoreDataClient.ComparisonPredicateComponent(
+			format: "ANY \(key.stringValue) == %@",
+			arguments: [element]
+		)
+	}
 	/// Equal to comparison.
 	public static func `where`<Root, Value>(_ keyPath: KeyPath<Root, Value>, equals value: Any, caseInsensitive: Bool = false) -> CoreDataClient.PredicateComponent {
 		CoreDataClient.ComparisonPredicateComponent(
@@ -487,6 +515,40 @@ extension CoreDataClient.Predicate {
 			subpredicates: [component.predicate.value]
 		)
 	}
+	
+	/// Equality check for relationship's nested property (to-one).
+	public static func whereRelationship<Root, Related, Value>(
+		_ relationKeyPath: KeyPath<Root, Related>,
+		keyPath: KeyPath<Related, Value>,
+		equals value: Any,
+		caseInsensitive: Bool = false
+	) -> CoreDataClient.PredicateComponent {
+		let fullKeyPath = NSExpression(forKeyPath: relationKeyPath).keyPath + "." + NSExpression(forKeyPath: keyPath).keyPath
+		let expression = NSExpression(forKeyPath: fullKeyPath)
+		let valueExpression = NSExpression(forConstantValue: value)
+		let predicate = NSComparisonPredicate(
+			leftExpression: expression,
+			rightExpression: valueExpression,
+			modifier: .direct,
+			type: .equalTo,
+			options: caseInsensitive ? .caseInsensitive : []
+		)
+		return CoreDataClient.ComparisonPredicateComponent(format: predicate.predicateFormat, arguments: [])
+	}
+	
+	/// Contains check for to-many relationship using SUBQUERY (e.g., ANY related.name == "value").
+	public static func whereToMany<Root, Related>(
+		_ relationKeyPath: KeyPath<Root, Set<Related>>,
+		matching format: String,
+		arguments: [Any]
+	) -> CoreDataClient.PredicateComponent {
+		let keyPathString = NSExpression(forKeyPath: relationKeyPath).keyPath
+		let predicateFormat = "SUBQUERY(\(keyPathString), $r, $r \(format)).@count > 0"
+		return CoreDataClient.ComparisonPredicateComponent(
+			format: predicateFormat,
+			arguments: arguments
+		)
+	}
 }
 
 // MARK: - Supporting Methods
@@ -536,11 +598,31 @@ extension CoreDataClient {
 		case let array as [AnySendable]:
 			return AnySendable(value: array)
 			
+		case let array as NSArray:
+			return AnySendable(value: AnyImmutableArray(array))
+			
 		case let null as NSNull:
 			return AnySendable(value: null)
 			
 		default:
 			fatalError("AnySendable: Unsupported type \(type(of: value))")
+		}
+	}
+}
+
+// MARK: - AnyImmutableArray
+
+extension CoreDataClient {
+	
+	public struct AnyImmutableArray: @unchecked Sendable {
+		private let array: NSArray
+		
+		public var rawValue: NSArray {
+			array.copy() as! NSArray
+		}
+		
+		public init(_ array: NSArray) {
+			self.array = array
 		}
 	}
 }

@@ -28,6 +28,9 @@ extension CoreDataClient: DependencyKey {
 			insertEntity: { type, configuration in
 				try await actor.insertEntity(type, configuration)
 			},
+			updateEntities: { type, changes in
+				try await actor.updateEntities(type, changes: changes)
+			},
 			updateEntity: { objectID, changes in
 				try await actor.updateEntity(objectID, changes: changes)
 			},
