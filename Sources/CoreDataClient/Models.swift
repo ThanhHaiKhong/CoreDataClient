@@ -159,10 +159,10 @@ extension CoreDataClient {
 				}
 			
 			return """
-   AnyTransferable {
-   \(lines.joined(separator: ",\n"))
-   }
-   """
+			AnyTransferable {
+			\(lines.joined(separator: ",\n"))
+			}
+			"""
 		}
 	}
 }
